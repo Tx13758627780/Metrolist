@@ -388,6 +388,10 @@ fun NavGraphBuilder.navigationBuilder(
         IntegrationScreen(navController)
     }
 
+    composable("settings/integrations/netease") {
+        com.metrolist.music.ui.screens.settings.integrations.NeteaseSettingsScreen(navController)
+    }
+
     composable("settings/integrations/discord") {
         DiscordSettings(navController)
     }

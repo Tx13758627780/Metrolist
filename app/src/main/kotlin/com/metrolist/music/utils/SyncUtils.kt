@@ -30,6 +30,11 @@ import com.metrolist.music.extensions.collectLatest
 import com.metrolist.music.extensions.isInternetConnected
 import com.metrolist.music.extensions.isSyncEnabled
 import com.metrolist.music.models.toMediaMetadata
+import com.metrolist.music.netease.SyncException
+import io.ktor.client.statement.bodyAsText
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -72,6 +77,13 @@ sealed class SyncOperation {
     data class SavePodcast(val podcastId: String, val save: Boolean) : SyncOperation()
     data class SaveEpisode(val episodeId: String, val save: Boolean, val setVideoId: String?) : SyncOperation()
     data object ClearPodcastData : SyncOperation()
+}
+
+internal fun requirePlaylistAddSuccess(body: String) {
+    val response = Json.parseToJsonElement(body).jsonObject
+    if (response["status"]?.jsonPrimitive?.content != "STATUS_SUCCEEDED") {
+        throw SyncException("YOUTUBE_ADD_NOT_CONFIRMED")
+    }
 }
 
 internal fun localSongIndexesAbsentFromRemote(
@@ -1548,6 +1560,31 @@ class SyncUtils @Inject constructor(
                 onCreated?.invoke(createdPlaylist.id, browseId != null)
             }
         }
+    }
+
+    suspend fun addToPlaylistIfAbsentSuspend(
+        browseId: String,
+        playlistId: String,
+        songId: String,
+    ): Boolean {
+        if (!isLoggedIn()) throw SyncException("YOUTUBE_LOGIN_REQUIRED")
+        markPlaylistModifying(playlistId)
+        var added = false
+        try {
+            runQueuedPlaylistEdit {
+                // ponytail: full read per mutation; optimize only with a server-side idempotency key.
+                val remote = YouTube.playlist(browseId).completed().getOrThrow()
+                if (!remote.playlist.isEditable) throw SyncException("TARGET_NOT_EDITABLE")
+                if (remote.songs.none { it.id == songId }) {
+                    val response = YouTube.addToPlaylist(browseId, songId).getOrThrow()
+                    requirePlaylistAddSuccess(response.bodyAsText())
+                    added = true
+                }
+            }
+        } finally {
+            unmarkPlaylistModifying(playlistId)
+        }
+        return added
     }
 
     fun scheduleAddToPlaylist(
