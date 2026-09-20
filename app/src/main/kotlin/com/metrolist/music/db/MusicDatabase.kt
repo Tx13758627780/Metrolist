@@ -45,6 +45,10 @@ import com.metrolist.music.db.entities.SortedSongAlbumMap
 import com.metrolist.music.db.entities.SortedSongArtistMap
 import com.metrolist.music.db.entities.SpeedDialItem
 import com.metrolist.music.extensions.toSQLiteQuery
+import com.metrolist.music.netease.NeteaseBinding
+import com.metrolist.music.netease.NeteaseSyncDao
+import com.metrolist.music.netease.NeteaseSyncLog
+import com.metrolist.music.netease.NeteaseSyncMapping
 import timber.log.Timber
 import java.io.File
 import java.text.SimpleDateFormat
@@ -57,6 +61,9 @@ import java.util.Locale
 class MusicDatabase(
     private val delegate: InternalDatabase,
 ) : DatabaseDao by delegate.dao {
+    val neteaseSyncDao: NeteaseSyncDao
+        get() = delegate.neteaseSyncDao
+
     val speedDialDao: SpeedDialDao
         get() = delegate.speedDialDao
 
@@ -107,13 +114,16 @@ class MusicDatabase(
         RecognitionHistory::class,
         SpeedDialItem::class,
         PodcastEntity::class,
+        NeteaseBinding::class,
+        NeteaseSyncMapping::class,
+        NeteaseSyncLog::class,
     ],
     views = [
         SortedSongArtistMap::class,
         SortedSongAlbumMap::class,
         PlaylistSongMapPreview::class,
     ],
-    version = 38,
+    version = 39,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 2, to = 3),
@@ -152,10 +162,12 @@ class MusicDatabase(
         AutoMigration(from = 35, to = 36, spec = Migration35To36::class),
         AutoMigration(from = 36, to = 37),
         AutoMigration(from = 37, to = 38),
+        AutoMigration(from = 38, to = 39),
     ],
 )
 @TypeConverters(Converters::class)
 abstract class InternalDatabase : RoomDatabase() {
+    abstract val neteaseSyncDao: NeteaseSyncDao
     abstract val dao: DatabaseDao
     abstract val speedDialDao: SpeedDialDao
 
